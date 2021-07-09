@@ -1,0 +1,298 @@
+---
+title: "A1"
+author: "ayaz haider"
+date: "4/25/2021"
+output:
+  pdf_document: default
+  word_document: default
+latex_engine: xelatex
+---
+
+
+
+
+```{r}
+```
+
+
+```{r}
+library(twitteR)
+library(ROAuth)
+library(tm)
+library(ggplot2)
+library("devtools")
+library(xts)
+library(data.table)
+library(topicmodels)
+library(sentiment)
+library(wordcloud)
+library(RColorBrewer)
+```
+
+
+```{r}
+setup_twitter_oauth("jPRTv2TEp4DnffcAsH0Y5YT2U", "Lmfb7x6sPXQ4rkCjQ1kzABr8KsRZdEJb0JDxFWUcNnhopGCsq0", "148014695-CARCJ7B2y9yo5Ap7cNxkJqENBAavZHEbDQQ2oF27", "nvYlgWqC7bOEMUDs0o9C42u0mJpCegvKDE8v9jOCo6oOg")
+```
+```{r}
+  
+
+```
+
+
+```{r}
+tweets <- userTimeline("@OfficialDGISPR", n = 300)
+
+```
+```{r}
+(n.tweet <- length(tweets))
+tweets.df <- twListToDF(tweets)
+```
+
+
+```{r}
+tweets.df[2, c("id", "created", "screenName", "replyToSN", "favoriteCount", "retweetCount", "longitude", "latitude", "text")]
+```
+
+
+
+
+```{r}
+writeLines(strwrap(tweets.df$text[1], 60))
+```
+
+
+```{r}
+
+
+
+# Replace blank space (“rt”)
+tweets.df$text <- gsub("rt", "", tweets.df$text)
+# Replace @UserName
+tweets.df$text <- gsub("@\\w+", "", tweets.df$text)
+# Remove punctuation
+tweets.df$text <- gsub("[[:punct:]]", "", tweets.df$text)
+# Remove links
+tweets.df$text <- gsub("http\\w+", "", tweets.df$text)
+# Remove tabs
+tweets.df$text <- gsub("[ |\t]{2,}", "", tweets.df$text)
+# Remove blank spaces at the beginning
+tweets.df$text <- gsub("^ ", "", tweets.df$text)
+# Remove blank spaces at the end
+tweets.df$text <- gsub(" $", "", tweets.df$text)
+# Remove numbers
+tweets.df$text <- gsub('[[:digit:]]+', '', tweets.df$text)
+# #convert all text to lower case
+tweets.df$text <- tolower(tweets.df$text)
+
+
+
+
+
+```
+```{r}
+writeLines(strwrap(tweets.df$text[1], 60))
+```
+
+```{r}
+
+```
+
+
+
+
+
+
+
+
+
+```{r}
+myStopwords <- c(setdiff(stopwords('english'), c("np", "ik")), "use", "see", "used", "via", "amp")
+mcorpus <- Corpus(VectorSource(tweets.df$text))
+mcorpus <- tm_map(mcorpus, function(x) removeWords(x,stopwords()))
+mcorpus <- tm_map(mcorpus, removeWords, myStopwords)
+```
+
+
+
+```{r}
+wordcloud(mcorpus,min.freq = 1, scale=c(3,0.2),colors=brewer.pal(8, "Dark2"),  random.color= TRUE, random.order = FALSE, max.words = 150)
+```
+
+
+
+
+
+```{r}
+mcorpusCopy <- mcorpus
+mcorpus=mcorpusCopy
+```
+
+
+
+
+```{r}
+mcorpus<- tm_map(mcorpus,  stemDocument)
+```
+
+
+
+
+
+
+
+
+```{r}
+writeLines(strwrap(mcorpus[[1]]$content, 60))
+```
+
+```{r}
+stemCompletion2 <- function(x, dictionary) {
+ x <- unlist(strsplit(as.character(x), ' '))
+# # Unexpectedly, stemCompletion completes an empty string to
+# # a word in dictionary. Remove empty string to avoid above issue.
+ x <- x[x != ""]
+ x <- stemCompletion(x, dictionary=dictionary)
+ x <- paste(x, sep="", collapse=" ")
+ PlainTextDocument(stripWhitespace(x))
+}
+
+mcorpus <- lapply(mcorpus, stemCompletion2, dictionary=mcorpusCopy)
+
+writeLines(strwrap(mcorpus[[1]]$content, 60))
+
+```
+
+
+
+
+```{r}
+wordFreq <- function(corpus, word) {
+results <- lapply(corpus,
+function(x) { grep(as.character(x), pattern=paste0("nn<",word)) })
+sum(unlist(results))
+}
+```
+
+
+
+```{r}
+mcorpus <- Corpus(VectorSource(tweets.df$text))
+replaceWord <- function(corpus, oldword, newword) {
+tm_map(corpus, content_transformer(gsub),
+pattern=oldword, replacement=newword)
+}
+
+mcorpus <- replaceWord(mcorpus, "pak", "pakistan")
+mcorpus <- replaceWord(mcorpus, "ik", "imrankhan")
+mcorpus <- replaceWord(mcorpus, "ns", "nawazsharif")
+
+
+
+
+```
+```{r}
+tdm <- TermDocumentMatrix(mcorpus) #, control = list(wordLengths = c(1, Inf)))
+tdm
+```
+
+
+
+```{r}
+idx <- which(dimnames(tdm)$Terms %in% c("patwari", "lahore", "naya"))
+#as.matrix(tdm[idx, 21:30])
+(freq.terms <- findFreqTerms(tdm, lowfreq = 2))
+
+term.freq <- rowSums(as.matrix(tdm))
+term.freq <- subset(term.freq, term.freq >= 10)
+df <- data.frame(term = names(term.freq), freq = term.freq)
+```
+
+```{r}
+ggplot(df, aes(x=term, y=freq)) + geom_bar(stat="identity") +
+xlab("Terms") + ylab("Count") + coord_flip() +
+theme(axis.text=element_text(size=10))
+```
+
+
+
+```{r}
+m <- as.matrix(tdm)
+word.freq <- sort(rowSums(m), decreasing = T)
+
+pal <- brewer.pal(9, "BuGn")[-(1:4)]
+```
+
+
+
+
+
+
+```{r}
+
+
+wordcloud(words = names(word.freq), freq = word.freq,min.freq = 1, scale=c(3,0.2),colors=brewer.pal(8, "Dark2"),  random.color= TRUE, random.order = FALSE, max.words = 150)
+```
+
+
+
+```{r}
+findAssocs(tdm, "nishanehaider", 0.1)
+
+```
+```{r}
+findAssocs(tdm, "imran", 0.1)
+```
+
+
+```{r}
+dtm <- as.DocumentTermMatrix(tdm)
+
+```
+
+```{r}
+rowTotals <- apply(dtm , 1, sum)
+dtm.new   <- dtm[rowTotals> 0, ] 
+lda <- LDA(dtm.new, k = 7)
+
+```
+
+
+```{r}
+term <- terms(lda, 3) # first 7 terms of every topic
+(term <- apply(term, MARGIN = 2, paste, collapse = ", "))
+```
+
+
+
+
+```{r}
+topics <- topics(lda)
+
+
+topics <- data.frame(date=as.IDate(tweets.df$created[c(1:400,1)]), topic=topics[c(1:400,1)])
+```
+
+
+
+
+```{r}
+ggplot(topics, aes(date, fill = term[topic])) +
+geom_density(position = "stack")
+```
+
+
+
+
+```{r}
+sentiments <- sentiment(tweets.df$text)
+table(sentiments$polarity)
+sentiments$score <- 1
+sentiments$score[sentiments$polarity == "positive"] <- 4
+sentiments$score[sentiments$polarity == "negative"] <- -4
+sentiments$date <-as.IDate(tweets.df$created) # as.ITime(tweets.df$created)
+result <- aggregate(score ~ date, data = sentiments, sum)
+
+plot(result, type = "l")
+```
+
+
